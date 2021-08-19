@@ -1,0 +1,195 @@
+import pandas as pd
+import numpy as np
+
+import pandas_profiling as pp
+
+wine=pd.read_csv("...................../wine_dataset.csv")
+wine
+
+wines=wine.iloc[:,0:12]
+wines
+
+pp.ProfileReport(wines)
+wines.info()
+wines.describe()
+
+
+# import seaborn
+import seaborn as sb
+# import matplotlib
+import matplotlib.pyplot as plt
+
+wines.corr()
+import seaborn as sns
+
+#create box plots
+fig,ax = plt.subplots(ncols=6,nrows=2,figsize=(20,10))
+index=0
+ax=ax.flatten()
+
+for col, value in wines.items():
+    if col!='type':
+        sns.boxplot(y=col,data=wines,ax=ax[index])
+        index+=1
+    
+# create distplot
+fig,ax = plt.subplots(ncols=6,nrows=2,figsize=(20,10))
+index=0
+ax=ax.flatten()
+
+for col, value in wines.items():
+    if col!='type':
+        sns.distplot(value,ax=ax[index])
+        index+=1
+
+
+wines.corr()
+# Create correlation matrix
+corr_mat = wines.corr(method='pearson')
+  
+# Convert correlation matrix to 1-D Series and sort
+sorted_mat = corr_mat.unstack().sort_values() 
+print(sorted_mat)
+
+# Select upper triangle of correlation matrix
+upper = corr_mat.where(np.triu(np.ones(corr_mat.shape), k=0).astype(np.bool))
+upper
+
+wines['free_sulfur_dioxide'].corr(wines['total_sulfur_dioxide'])
+wines['alcohol'].corr(wines['density'])
+
+sns.countplot(wine['quality'])
+sns.countplot(wine['style'])
+
+#showing maximum correlation values 
+#rest of the data is not having much correlation 
+# Let's apply feature seletion methon to select feature & check whether we can drop it or not 
+
+# Rendon forest feature selection method
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.inspection import permutation_importance
+#import shap
+#Feature Importance computed with SHAP values
+
+X=wines.iloc[:,0:11]
+y=wines["quality"]
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=12)
+
+rf = RandomForestClassifier(n_estimators=100)
+rf.fit(X_train, y_train)
+
+rf.feature_importances_
+
+features=X.columns
+features
+plt.barh(features,rf.feature_importances_)
+
+sorted_idx = rf.feature_importances_.argsort()
+plt.barh(features[sorted_idx], rf.feature_importances_[sorted_idx])
+plt.xlabel("Random Forest Feature Importance")
+
+
+#lets normalize our data as our data has too many outliers
+
+#importing module
+from sklearn.preprocessing import MinMaxScaler
+# creating normalization object 
+norm = MinMaxScaler()
+# fit data
+norm_fit = norm.fit(X_train)
+new_xtrain = norm_fit.transform(X_train)
+new_xtest = norm_fit.transform(X_test)
+# display values
+print(new_xtrain)
+
+from sklearn.linear_model import LogisticRegression
+classifier = LogisticRegression()
+lr_model=classifier.fit(new_xtrain,y_train)
+classifier.coef_ # coefficients of features 
+
+y_train_pred = lr_model.predict(new_xtrain)
+y_test_pred=lr_model.predict(new_xtest)
+from sklearn import metrics
+lr_train=metrics.accuracy_score(y_train,y_train_pred)
+lr_train
+lr_test=metrics.accuracy_score(y_test,y_test_pred)
+lr_test
+
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+pd.crosstab(y_test,y_test_pred)
+
+print(classification_report(y_test,y_test_pred))
+
+classifier = LogisticRegression()
+
+#Grid Search
+
+from sklearn.model_selection import GridSearchCV
+clf = LogisticRegression()
+
+parameters = {'penalty':["l1","l2"], 'C':np.logspace(-4, 4, 20),'solver': ['newton-cg', 'lbfgs', 'liblinear']}
+
+
+#clf_GS = GridSearchCV(classifier,parameters)
+print(clf.get_params().keys())
+
+grid_clf_acc = GridSearchCV(clf,parameters)
+grid_clf_acc.fit(new_xtrain, y_train)
+
+
+#best penalty
+print('Best Penalty:',grid_clf_acc.best_estimator_.get_params()['penalty'])
+print('Best C:', grid_clf_acc.best_estimator_.get_params()['C'])
+y_pred_acc = grid_clf_acc.predict(new_xtest)
+print(classification_report(y_test,y_pred_acc))
+
+from sklearn.metrics import recall_score
+from sklearn.ensemble import RandomForestClassifier
+Random_clf = RandomForestClassifier(n_estimators=250)
+rf = Random_clf.fit(new_xtrain,y_train)
+'''rf_grid = GridSearchCV(rf,parameters)
+
+rf_grid.fit(new_xtrain, y_train)'''
+
+rf_pred= rf.predict(new_xtest)
+rf_test_accu=np.mean(rf_pred==y_test)
+rf_test_accu
+print(classification_report(rf_pred,y_test))
+
+from sklearn.neighbors import KNeighborsClassifier
+import seaborn as sns
+sns.set()
+
+# train & test parameters
+#new_xtrain,y_train,new_xtest,y_test
+
+knn=KNeighborsClassifier(n_neighbors=5,metric='euclidean')
+knn.fit(new_xtrain,y_train)
+knn_pred=knn.predict(new_xtest)
+
+print(classification_report(knn_pred,y_test))
+
+parameters = {"n_neighbors": range(1,10),"weights": ["uniform", "distance"]}
+gridsearch = GridSearchCV(KNeighborsClassifier(), parameters)
+gridsearch.fit(new_xtrain, y_train)
+GridSearchCV(estimator=KNeighborsClassifier(),param_grid={'n_neighbors': range(1, 50),'weights': ['uniform', 'distance']})
+gridsearch.best_params_#{'n_neighbors': 25, 'weights': 'distance'}
+knn_pred_grid = gridsearch.predict(new_xtest)
+print(classification_report(knn_pred_grid,y_test))
+
+### decision Tree
+from sklearn.tree import DecisionTreeClassifier
+dt=DecisionTreeClassifier()
+dt.fit(new_xtrain,y_train)
+dt_pred=dt.predict(new_xtest)
+print(classification_report(dt_pred,y_test))
+
+#SVM
+from sklearn.svm import SVC
+classifier = SVC(kernel='rbf', random_state = 1)
+classifier.fit(new_xtrain,y_train)
+svm_pred=classifier.predict(new_xtest)
+print(classification_report(svm_pred,y_test))
